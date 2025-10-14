@@ -1,42 +1,120 @@
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react';
-import TodoList from '../TodoList';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom'; 
+import TodoList from '../components/TodoList'; 
 
-describe('TodoList', () => {
-  it('renders the initial todos', () => {
-    const { getByText } = render(<TodoList />);
-    expect(getByText('Learn about React')).toBeInTheDocument();
-    expect(getByText('Meet friend for lunch')).toBeInTheDocument();
-    expect(getByText('Build really cool todo app')).toBeInTheDocument();
+test('renders TodoList component with initial todos', () => {
+  render(<TodoList />); 
+
+  expect(screen.getByText(/My Todo List/i)).toBeInTheDocument();
+
+  expect(screen.getByText(/Learn about React/i)).toBeInTheDocument();
+  expect(screen.getByText(/Meet friend for lunch/i)).toBeInTheDocument();
+  expect(screen.getByText(/Build really cool todo app/i)).toBeInTheDocument();
+
+  expect(screen.getByPlaceholderText(/Add a new todo.../i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Add/i })).toBeInTheDocument();
+});
+
+test('allows user to add a new todo', async () => {
+  render(<TodoList />);
+
+  const input = screen.getByPlaceholderText(/Add a new todo.../i);
+  const addButton = screen.getByRole('button', { name: /Add/i });
+
+  fireEvent.change(input, { target: { value: 'Test new todo' } });
+  expect(input.value).toBe('Test new todo'); 
+
+  fireEvent.submit(addButton);
+
+  await waitFor(() => {
+    expect(screen.getByText(/Test new todo/i)).toBeInTheDocument();
   });
 
-  it('adds a new todo', () => {
-    const { getByPlaceholderText, getByText } = render(<TodoList />);
-    const input = getByPlaceholderText('Add a new todo');
-    const addButton = getByText('Add');
+  expect(input.value).toBe('');
+});
 
-    fireEvent.change(input, { target: { value: 'New Todo' } });
-    fireEvent.click(addButton);
+test('allows user to toggle a todo as completed/incomplete', async () => {
+  render(<TodoList />);
 
-    expect(getByText('New Todo')).toBeInTheDocument();
+  const todoItem = screen.getByText(/Learn about React/i);
+
+  expect(todoItem).not.toHaveStyle('text-decoration: line-through');
+  expect(todoItem).toHaveClass('text-gray-800');
+
+  fireEvent.click(todoItem);
+
+  await waitFor(() => {
+    expect(todoItem).toHaveClass('line-through');
+  });
+  expect(todoItem).toHaveClass('text-gray-500'); 
+
+  fireEvent.click(todoItem);
+
+  expect(todoItem).not.toHaveStyle('text-decoration: line-through');
+  expect(todoItem).toHaveClass('text-gray-800');
+});
+
+test('allows user to delete a todo', async () => {
+  render(<TodoList />);
+
+  const todoText = 'Meet friend for lunch';
+  const todoItem = screen.getByText(todoText);
+  expect(todoItem).toBeInTheDocument(); 
+
+
+  const deleteButtons = screen.getAllByRole('button', { name: /Delete/i });
+
+
+  const deleteButtonForLunch = deleteButtons[1]; 
+
+  fireEvent.click(deleteButtonForLunch);
+
+  await waitFor(() => {
+    expect(screen.queryByText(todoText)).not.toBeInTheDocument();
   });
 
-  it('toggles a todo', () => {
-    const { getByText } = render(<TodoList />);
-    const todoText = getByText('Learn about React');
-    const todoItem = todoText.closest('li');
+  expect(screen.getByText(/Learn about React/i)).toBeInTheDocument();
+});
 
-    fireEvent.click(todoText);
-    expect(todoItem).toHaveStyle('text-decoration: line-through');
+test('does not add an empty todo', () => {
+  render(<TodoList />);
 
-    fireEvent.click(todoText);
-    expect(todoItem).not.toHaveStyle('text-decoration: line-through');
+  const input = screen.getByPlaceholderText(/Add a new todo.../i);
+  const addButton = screen.getByRole('button', { name: /Add/i });
+
+  const initialTodos = screen.getAllByRole('listitem').length;
+
+  fireEvent.change(input, { target: { value: '   ' } });
+  fireEvent.submit(addButton);
+
+  expect(screen.getAllByRole('listitem').length).toBe(initialTodos);
+  expect(input.value).toBe(''); // Input should still clear
+});
+
+test('displays "No todos yet!" message when list is empty', async () => {
+  render(<TodoList />);
+
+  const deleteButtons = screen.getAllByRole('button', { name: /Delete/i });
+  for (const button of deleteButtons) {
+    fireEvent.click(button);
+  }
+
+  await waitFor(() => {
+    expect(screen.queryByText(/Learn about React/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Meet friend for lunch/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Build really cool todo app/i)).not.toBeInTheDocument();
   });
 
-  it('deletes a todo', () => {
-    const { queryByText, getAllByText } = render(<TodoList />);
-    const deleteButtons = getAllByText('Delete');
-    fireEvent.click(deleteButtons[0]);
-    expect(queryByText('Learn about React')).not.toBeInTheDocument();
+  expect(screen.getByText(/No todos yet! Add some above./i)).toBeInTheDocument();
+
+  const input = screen.getByPlaceholderText(/Add a new todo.../i);
+  const addButton = screen.getByRole('button', { name: /Add/i });
+  fireEvent.change(input, { target: { value: 'First todo' } });
+  fireEvent.click(addButton);
+
+  await waitFor(() => {
+    expect(screen.getByText(/First todo/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No todos yet! Add some above./i)).not.toBeInTheDocument();
   });
 });
